@@ -13,6 +13,7 @@ from models.user import User
 from models.vehicle import Vehicle
 from datetime import date
 from init import app, db
+import re
 
 oauth = OAuth(app)
 
@@ -26,11 +27,35 @@ oauth.register(
 
 @app.route('/')
 def index():
-    print(User.query.all())
+    user=User.query.all()
+    # for user in uservar:
+    #     print("User name:",user.user_name)
+    car_owners = CarOwner.query.all() 
+    for owner in car_owners:
+        print("owner name:",owner.name)
     user = session.get("user")
-    return render_template("index.html", session=user, pretty=json.dumps(user, indent=4))
-
-import re
+    
+    vehicles = Vehicle.query.all()  
+    
+    vehicle_list = [{
+        'vehicle_id': vehicle.vehicle_id,
+        'owner_name': vehicle.owner.name,
+        'available_seats': vehicle.available_seats,
+        'charges': vehicle.charges,
+        'vehicle_name': vehicle.vehicle_name,
+        'vehicle_description': vehicle.vehicle_description,
+        'vehicle_type': vehicle.vehicle_type,
+        'duration': vehicle.duration,
+        'owner_email': vehicle.owner.email,
+        'owner_phone': vehicle.owner.whatsapp_number,
+        'departure_time': vehicle.ride.departure_time if vehicle.ride else None, 
+        'return_time': vehicle.ride.return_time if vehicle.ride else None, 
+    } for vehicle in vehicles]
+    
+    if request.headers.get('Accept') == 'application/json':
+        return jsonify(vehicle_list)
+    
+    return render_template("index.html", session=user, pretty=json.dumps(user, indent=4), vehicles=vehicle_list)
 
 @app.route("/callback", methods=["GET", "POST"])
 def callback():
@@ -94,6 +119,7 @@ def add_vehicle():
     try:
         user_info = session['user']['userinfo']
         owner_name = user_info.get('user_name')
+        print("during adding vehicle: ",user_info.get('user_name'))
         email = user_info.get('email')
 
         owner = CarOwner.query.filter_by(email=email).first()
@@ -121,6 +147,8 @@ def add_vehicle():
             vehicle_type=request.form['vehicle_type'],
             available_seats=int(request.form['seats']) if request.form['seats'] != 'four+'
             else int(request.form['custom_seats']),
+            duration=request.form['duration'],
+            charges=request.form['charges'],
             owner_id=owner.owner_id
         )
         if(vehicle.available_seats < 1):
